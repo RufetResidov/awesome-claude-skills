@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 
 export default function Index() {
-  // Redirect immediately to Onboarding Screen 1
-  return <Redirect href="/onboarding" />;
+  // Directly to Home — login/register deferred until user action
+  return <Redirect href="/(tabs)" />;
 }
