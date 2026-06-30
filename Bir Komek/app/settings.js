@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,46 +10,58 @@ import {
   Image,
   StatusBar,
   Alert,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, Feather } from '@expo/vector-icons';
+import { useLanguage } from './language_store';
+import { useTheme } from './theme_store';
 
 const { width: SW } = Dimensions.get('window');
 const s = (n) => Math.round(n * (SW / 393));
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const { colors, activeMode } = useTheme();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleCopyCode = () => {
     Alert.alert('Uğurlu', 'Birkömək kodunuz kopyalandı.');
   };
 
-  return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F4F4F5" />
+  const handleLogoutConfirm = () => {
+    setShowLogoutModal(false);
+    router.replace('/(auth)/login');
+  };
 
-      {/* ── Centered Header ───────────────────────── */}
-      <View style={styles.header}>
+  return (
+    <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
+      <StatusBar 
+        barStyle={activeMode === 'dark' ? 'light-content' : 'dark-content'} 
+        backgroundColor={colors.headerBackground} 
+      />
+
+      {/* ── Header ────────────────────────────────── */}
+      <View style={[styles.header, { backgroundColor: colors.headerBackground, borderColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={s(24)} color="#111827" />
+          <Feather name="arrow-left" size={s(24)} color={colors.text} />
         </TouchableOpacity>
-        
-        <View style={styles.titleContainer}>
-          <Text style={styles.headerTitle}>Tənzimləmələr</Text>
-        </View>
-        
-        <View style={styles.emptyRight} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t('settings')}</Text>
+        <TouchableOpacity style={styles.moreBtn}>
+          <Ionicons name="ellipsis-horizontal" size={s(24)} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: activeMode === 'dark' ? colors.background : '#F4F4F5' }]} showsVerticalScrollIndicator={false}>
         
         {/* ── Profile Card ──────────────────────────── */}
-        <View style={styles.profileCard}>
+        <View style={[styles.profileCard, { backgroundColor: colors.cardBackground }]}>
           <Image
             source={require('../assets/avatar.jpg')}
             style={styles.avatar}
           />
-          <Text style={styles.profileName}>Rüfət Rəşidov</Text>
+          <Text style={[styles.profileName, { color: colors.text }]}>Rüfət Rəşidov</Text>
           
           <TouchableOpacity onPress={handleCopyCode} style={styles.codeBadge} activeOpacity={0.8}>
             <Text style={styles.codeText}>Birkömək Kod: 3597978</Text>
@@ -58,68 +70,121 @@ export default function SettingsScreen() {
         </View>
 
         {/* ── General Settings Card ─────────────────── */}
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>General</Text>
+        <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground }]}>
+          <Text style={[styles.sectionHeading, { color: colors.text }]}>{t('general')}</Text>
 
-          {/* Row 1: Tənzimləmələr */}
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+          {/* Row 1: Tənzimləmələr -> routes to /general_settings */}
+          <TouchableOpacity 
+            style={styles.row} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/general_settings')}
+          >
             <View style={styles.rowLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="settings-outline" size={s(20)} color="#111827" />
+              <View style={[styles.iconContainer, { backgroundColor: colors.lightBg }]}>
+                <Ionicons name="settings-outline" size={s(20)} color={colors.text} />
               </View>
-              <Text style={styles.rowText}>Tənzimləmələr</Text>
+              <Text style={[styles.rowText, { color: colors.text }]}>{t('settings')}</Text>
             </View>
-            <Feather name="chevron-right" size={s(20)} color="#111827" />
+            <Feather name="chevron-right" size={s(20)} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Row 2: Dəstək */}
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+          {/* Row 2: Dəstək -> routes to /support */}
+          <TouchableOpacity 
+            style={styles.row} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/support')}
+          >
             <View style={styles.rowLeft}>
-              <View style={styles.iconContainer}>
-                <Feather name="message-square" size={s(20)} color="#111827" />
+              <View style={[styles.iconContainer, { backgroundColor: colors.lightBg }]}>
+                <Feather name="message-square" size={s(20)} color={colors.text} />
               </View>
-              <Text style={styles.rowText}>Dəstək</Text>
+              <Text style={[styles.rowText, { color: colors.text }]}>{t('support')}</Text>
             </View>
-            <Feather name="chevron-right" size={s(20)} color="#111827" />
+            <Feather name="chevron-right" size={s(20)} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Row 3: Məxfilik siyasəti */}
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+          {/* Row 3: Məxfilik siyasəti -> routes to /privacy */}
+          <TouchableOpacity 
+            style={styles.row} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/privacy')}
+          >
             <View style={styles.rowLeft}>
-              <View style={styles.iconContainer}>
-                <Feather name="file-text" size={s(20)} color="#111827" />
+              <View style={[styles.iconContainer, { backgroundColor: colors.lightBg }]}>
+                <Feather name="file-text" size={s(20)} color={colors.text} />
               </View>
-              <Text style={styles.rowText}>Məxfilik siyasəti</Text>
+              <Text style={[styles.rowText, { color: colors.text }]}>{t('privacy')}</Text>
             </View>
-            <Feather name="chevron-right" size={s(20)} color="#111827" />
+            <Feather name="chevron-right" size={s(20)} color="#9CA3AF" />
           </TouchableOpacity>
 
-          {/* Row 4: Tez-tez verilən suallar (Fixed FAQ Icon) */}
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+          {/* Row 4: Tez-tez verilən suallar -> routes to /faq */}
+          <TouchableOpacity 
+            style={styles.row} 
+            activeOpacity={0.7}
+            onPress={() => router.push('/faq')}
+          >
             <View style={styles.rowLeft}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="help-circle-outline" size={s(21)} color="#111827" />
+              <View style={[styles.iconContainer, { backgroundColor: colors.lightBg }]}>
+                <Ionicons name="help-circle-outline" size={s(21)} color={colors.text} />
               </View>
-              <Text style={styles.rowText}>Tez-tez verilən suallar</Text>
+              <Text style={[styles.rowText, { color: colors.text }]}>{t('faq')}</Text>
             </View>
-            <Feather name="chevron-right" size={s(20)} color="#111827" />
+            <Feather name="chevron-right" size={s(20)} color="#9CA3AF" />
           </TouchableOpacity>
         </View>
 
         {/* ── Logout Section Card ──────────────────── */}
-        <View style={styles.sectionCard}>
-          <TouchableOpacity style={styles.row} activeOpacity={0.7}>
+        <View style={[styles.sectionCard, { backgroundColor: colors.cardBackground }]}>
+          <TouchableOpacity 
+            style={styles.row} 
+            activeOpacity={0.7}
+            onPress={() => setShowLogoutModal(true)}
+          >
             <View style={styles.rowLeft}>
-              <View style={styles.iconContainer}>
+              <View style={[styles.iconContainer, { backgroundColor: colors.lightBg }]}>
                 <Feather name="log-out" size={s(20)} color="#E11D48" />
               </View>
-              <Text style={[styles.rowText, { color: '#E11D48' }]}>Çıxış</Text>
+              <Text style={[styles.rowText, { color: '#E11D48' }]}>{t('logout')}</Text>
             </View>
             <Feather name="chevron-right" size={s(20)} color="#E11D48" />
           </TouchableOpacity>
         </View>
 
       </ScrollView>
+
+      {/* ── Logout Confirmation Warning Modal ────── */}
+      <Modal
+        visible={showLogoutModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowLogoutModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>{t('logoutConfirm')}</Text>
+            <Text style={[styles.modalText, { color: colors.subText }]}>{t('logoutConfirmDesc')}</Text>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalBtnLeft, { backgroundColor: activeMode === 'dark' ? '#374151' : '#E5E7EB' }]}
+                activeOpacity={0.8}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>{t('cancel')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.modalBtn, styles.modalBtnRight, { backgroundColor: activeMode === 'dark' ? '#4B5563' : '#D1D5DB' }]}
+                activeOpacity={0.8}
+                onPress={handleLogoutConfirm}
+              >
+                <Text style={[styles.modalBtnText, { color: colors.text }]}>{t('confirm')}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -127,49 +192,36 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F4F4F5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: s(20),
     paddingTop: s(16),
-    paddingBottom: s(16),
-    position: 'relative',
-    height: s(60),
-    justifyContent: 'space-between',
-    backgroundColor: '#F4F4F5',
+    paddingBottom: s(12),
+    borderBottomWidth: 1,
   },
   backBtn: {
+    marginRight: s(16),
     padding: s(4),
-    zIndex: 10,
-  },
-  titleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   headerTitle: {
-    color: '#111827',
-    fontSize: s(20),
+    fontSize: s(22),
     fontWeight: '800',
     fontFamily: 'Plus Jakarta Sans',
+    flex: 1,
   },
-  emptyRight: {
-    width: s(32),
+  moreBtn: {
+    padding: s(4),
   },
   container: {
     paddingHorizontal: s(16),
     paddingTop: s(20),
     paddingBottom: s(40),
     gap: s(16),
+    flexGrow: 1,
   },
   profileCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: s(20),
     paddingVertical: s(24),
     paddingHorizontal: s(16),
@@ -189,7 +241,6 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: s(18),
     fontWeight: '700',
-    color: '#111827',
     fontFamily: 'Plus Jakarta Sans',
   },
   codeBadge: {
@@ -208,7 +259,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Plus Jakarta Sans',
   },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: s(20),
     padding: s(16),
     gap: s(16),
@@ -221,7 +271,6 @@ const styles = StyleSheet.create({
   sectionHeading: {
     fontSize: s(20),
     fontWeight: '800',
-    color: '#111827',
     fontFamily: 'Plus Jakarta Sans',
     marginBottom: s(4),
   },
@@ -239,14 +288,58 @@ const styles = StyleSheet.create({
     width: s(40),
     height: s(40),
     borderRadius: s(12),
-    backgroundColor: '#F4F4F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   rowText: {
     fontSize: s(15),
     fontWeight: '600',
-    color: '#111827',
+    fontFamily: 'Plus Jakarta Sans',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 21, 28, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: s(24),
+  },
+  modalContainer: {
+    borderRadius: s(30),
+    padding: s(24),
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: s(20),
+    fontWeight: '700',
+    fontFamily: 'Plus Jakarta Sans',
+    marginBottom: s(8),
+  },
+  modalText: {
+    fontSize: s(15),
+    lineHeight: s(22),
+    fontFamily: 'Plus Jakarta Sans',
+    marginBottom: s(24),
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: s(12),
+  },
+  modalBtn: {
+    flex: 1,
+    height: s(48),
+    borderRadius: s(24),
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBtnText: {
+    fontSize: s(16),
+    fontWeight: '600',
     fontFamily: 'Plus Jakarta Sans',
   },
 });

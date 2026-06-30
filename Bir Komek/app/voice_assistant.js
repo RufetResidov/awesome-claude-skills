@@ -13,6 +13,8 @@ import {
   Easing,
   StatusBar,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
@@ -205,6 +207,20 @@ export default function VoiceAssistantScreen() {
     }
   };
 
+  // Handle selected pill or card command
+  const handleCommand = (text, reply) => {
+    setShowSheet(false);
+    const userMsg = { id: `msg-${Date.now()}-u`, sender: 'user', text };
+    setMessages(prev => [...prev, userMsg]);
+    setStatus('speaking');
+
+    setTimeout(() => {
+      const assistantMsg = { id: `msg-${Date.now()}-a`, sender: 'assistant', text: reply };
+      setMessages(prev => [...prev, assistantMsg]);
+      setStatus('idle');
+    }, 1200);
+  };
+
   // Exit screen safely
   const handleExitScreen = () => {
     saveCurrentSessionToHistory();
@@ -295,6 +311,10 @@ export default function VoiceAssistantScreen() {
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="dark-content" backgroundColor="#F4F4F5" />
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoidingView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
 
       {/* ── Centered Header ───────────────────────── */}
       <View style={styles.header}>
@@ -511,6 +531,7 @@ export default function VoiceAssistantScreen() {
           </View>
         )}
       </View>
+      </KeyboardAvoidingView>
 
       {/* ── Capabilities Drawer Sheet ──────────────── */}
       <Modal
@@ -617,6 +638,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#F4F4F5',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

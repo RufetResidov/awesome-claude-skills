@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -21,9 +21,170 @@ import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Camera, CameraView } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { addEvent } from './history_store';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { Audio } from 'expo-av';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 const s = (n) => Math.round(n * (SW / 393));
+
+const ChatVideoPlayer = ({ uri }) => {
+  const player = useVideoPlayer(uri, (player) => {
+    player.loop = true;
+    player.muted = true;
+  });
+
+  return (
+    <VideoView
+      style={{ width: '100%', height: s(180) }}
+      player={player}
+      allowsFullscreen
+      allowsPictureInPicture
+      contentFit="cover"
+    />
+  );
+};
+
+const AudioMessagePlayer = ({ uri, initialDuration, time }) => {
+  const [sound, setSound] = useState(null);
+  const soundRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [layoutWidth, setLayoutWidth] = useState(1);
+
+  const bars = [8, 14, 22, 10, 6, 18, 26, 20, 12, 16, 24, 18, 10, 14, 20, 8, 12, 22, 16, 6, 10, 18, 12, 14, 8];
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSound = async () => {
+      if (!uri) return;
+      try {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri },
+          { progressUpdateIntervalMillis: 100 }
+        );
+        newSound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded) {
+            setPosition(status.positionMillis);
+            setDuration(status.durationMillis || 0);
+            setIsPlaying(status.isPlaying);
+            if (status.didJustFinish) {
+              setIsPlaying(false);
+              setPosition(0);
+              newSound.setPositionAsync(0).catch(err => console.log('Reset sound error:', err));
+            }
+          }
+        });
+        if (isMounted) {
+          setSound(newSound);
+          soundRef.current = newSound;
+        } else {
+          newSound.unloadAsync();
+        }
+      } catch (err) {
+        console.error('Error loading sound', err);
+      }
+    };
+
+    loadSound();
+
+    return () => {
+      isMounted = false;
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
+  }, [uri]);
+
+  const handlePlayPause = async () => {
+    const activeSound = soundRef.current || sound;
+    if (!activeSound) return;
+    try {
+      if (isPlaying) {
+        await activeSound.pauseAsync();
+      } else {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+        await activeSound.playAsync();
+      }
+    } catch (err) {
+      console.error('Play/Pause error', err);
+    }
+  };
+
+  const handleSeek = async (event) => {
+    const activeSound = soundRef.current || sound;
+    if (!activeSound || !duration) return;
+    const { locationX } = event.nativeEvent;
+    const seekPercentage = Math.max(0, Math.min(1, locationX / layoutWidth));
+    const seekPosition = seekPercentage * duration;
+    try {
+      await activeSound.setPositionAsync(seekPosition);
+      setPosition(seekPosition);
+    } catch (err) {
+      console.error('Seek error', err);
+    }
+  };
+
+  const formatTime = (ms) => {
+    if (!ms) return '0:00';
+    const totalSecs = Math.floor(ms / 1000);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const playProgress = duration > 0 ? position / duration : 0;
+  const activeBarsCount = Math.floor(playProgress * bars.length);
+
+  return (
+    <View style={{ width: s(220) }}>
+      <View style={styles.audioBubbleRow}>
+        <TouchableOpacity onPress={handlePlayPause} style={styles.playBtnCircle}>
+          <Ionicons 
+            name={isPlaying ? "pause" : "play"} 
+            size={s(15)} 
+            color="#2563EB" 
+            style={!isPlaying ? { marginLeft: s(2) } : null} 
+          />
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          activeOpacity={0.9}
+          onPress={handleSeek}
+          style={styles.waveformContainer}
+          onLayout={(e) => setLayoutWidth(e.nativeEvent.layout.width)}
+        >
+          {bars.map((h, i) => {
+            const isActive = i < activeBarsCount;
+            return (
+              <View 
+                key={i} 
+                style={[
+                  styles.waveformBar, 
+                  { 
+                    height: s(h),
+                    backgroundColor: isActive ? '#FFFFFF' : 'rgba(255, 255, 255, 0.4)' 
+                  }
+                ]} 
+              />
+            );
+          })}
+        </TouchableOpacity>
+      </View>
+
+      <View style={[styles.bubbleFooter, { marginTop: s(4) }]}>
+        <Text style={styles.audioDurationText}>
+          {isPlaying || position > 0 ? formatTime(position) : initialDuration}
+        </Text>
+        <Text style={styles.userTimeText}>{time || '11:25'}</Text>
+        <Ionicons name="checkmark-done" size={s(15)} color="rgba(255,255,255,0.6)" />
+      </View>
+    </View>
+  );
+};
 
 export default function SosReportScreen() {
   const router = useRouter();
@@ -47,29 +208,77 @@ export default function SosReportScreen() {
 
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [recording, setRecording] = useState(null);
   const voiceTimerRef = useRef(null);
 
-  const startVoiceRecording = () => {
-    setIsRecordingVoice(true);
-    setRecordingDuration(0);
-    voiceTimerRef.current = setInterval(() => {
-      setRecordingDuration(prev => prev + 1);
-    }, 1000);
+  const startVoiceRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('İcazə lazımdır', 'Mikrofonu aktivləşdirmək üçün icazə verməlisiniz.');
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording: newRecording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      setRecording(newRecording);
+      setIsRecordingVoice(true);
+      setRecordingDuration(0);
+      voiceTimerRef.current = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Failed to start recording', err);
+      Alert.alert('Xəta', 'Səs qeydini başlatmaq mümkün olmadı.');
+    }
   };
 
-  const cancelVoiceRecording = () => {
+  const cancelVoiceRecording = async () => {
     setIsRecordingVoice(false);
     if (voiceTimerRef.current) {
       clearInterval(voiceTimerRef.current);
     }
     setRecordingDuration(0);
+    if (recording) {
+      try {
+        await recording.stopAndUnloadAsync();
+      } catch (e) {}
+      setRecording(null);
+    }
   };
 
-  const sendVoiceRecording = () => {
+  const sendVoiceRecording = async () => {
     if (voiceTimerRef.current) {
       clearInterval(voiceTimerRef.current);
     }
     const durationStr = formatDuration(recordingDuration);
+    let uri = null;
+    if (recording) {
+      try {
+        await recording.stopAndUnloadAsync();
+        uri = recording.getURI();
+      } catch (e) {
+        console.error(e);
+      }
+      setRecording(null);
+    }
+
+    if (!uri) {
+      setIsRecordingVoice(false);
+      return;
+    }
+
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+    });
+
     const ticketId = `ticket-${Date.now()}`;
     
     addEvent({
@@ -95,6 +304,7 @@ export default function SosReportScreen() {
       sender: 'user',
       time: new Date().toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' }),
       isAudio: true,
+      audioUri: uri,
       audioDuration: durationStr,
       avatar: require('../assets/avatar.jpg'),
     };
@@ -393,16 +603,27 @@ export default function SosReportScreen() {
                     <View style={styles.activeDot} />
                   </View>
 
-                  <View style={styles.userBubble}>
-                    {/* User Image */}
+                  <View style={[styles.userBubble, msg.image && { flex: 1, padding: s(4) }]}>
+                    {/* User Image / Video */}
                     {msg.image && (
                       <View style={styles.userImageWrapper}>
-                        <TouchableOpacity onPress={() => handleOpenFullImage(msg.image)}>
-                          <Image source={{ uri: msg.image }} style={styles.userImage} />
-                        </TouchableOpacity>
+                        {msg.isVideo ? (
+                          <ChatVideoPlayer uri={msg.image} />
+                        ) : (
+                          <TouchableOpacity 
+                            onPress={() => handleOpenFullImage(msg.image)}
+                            style={{ width: '100%', height: '100%' }}
+                          >
+                            <Image 
+                              source={{ uri: msg.image }} 
+                              style={{ width: '100%', height: '100%' }} 
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        )}
                         <View style={styles.imageMetaRow}>
-                          <Feather name="download" size={s(15)} color="#475569" />
                           <Text style={styles.imageMetaSize}>{msg.fileSize || '120 KB'}</Text>
+                          <Feather name="download" size={s(15)} color="#475569" style={{ marginLeft: s(4) }} />
                           <Text style={styles.imageMetaName} numberOfLines={1}>{msg.fileName || 'face-scar.jpg'}</Text>
                         </View>
                       </View>
@@ -410,22 +631,38 @@ export default function SosReportScreen() {
 
                     {/* User Audio Waveform */}
                     {msg.isAudio && (
-                      <View style={styles.audioBubbleRow}>
-                        <TouchableOpacity style={styles.playBtnCircle}>
-                          <Ionicons name="play" size={s(15)} color="#2563EB" style={{ marginLeft: s(2) }} />
-                        </TouchableOpacity>
-                        {renderWaveform()}
-                      </View>
+                      <AudioMessagePlayer 
+                        uri={msg.audioUri} 
+                        initialDuration={msg.audioDuration} 
+                        time={msg.time}
+                      />
                     )}
 
-                    {/* User Text */}
-                    {msg.text ? <Text style={styles.userBubbleText}>{msg.text}</Text> : null}
-                    
-                    <View style={styles.bubbleFooter}>
-                      {msg.isAudio && <Text style={styles.audioDurationText}>{msg.audioDuration}</Text>}
-                      <Text style={styles.userTimeText}>{msg.time || '11:25'}</Text>
-                      <Ionicons name="checkmark-done" size={s(15)} color="rgba(255,255,255,0.6)" />
-                    </View>
+                    {/* User Text and Footer formatting for Images */}
+                    {msg.image ? (
+                      <View style={{ padding: s(8), width: '100%' }}>
+                        {msg.text ? (
+                          <Text style={[styles.userBubbleText, { marginBottom: s(4) }]}>
+                            {msg.text}
+                          </Text>
+                        ) : null}
+                        <View style={[styles.bubbleFooter, { alignSelf: 'flex-end', marginTop: 0 }]}>
+                          <Text style={styles.userTimeText}>{msg.time || '11:25'}</Text>
+                          <Ionicons name="checkmark-done" size={s(15)} color="rgba(255,255,255,0.6)" />
+                        </View>
+                      </View>
+                    ) : (
+                      <>
+                        {msg.text ? <Text style={styles.userBubbleText}>{msg.text}</Text> : null}
+                        
+                        {!msg.isAudio && (
+                          <View style={styles.bubbleFooter}>
+                            <Text style={styles.userTimeText}>{msg.time || '11:25'}</Text>
+                            <Ionicons name="checkmark-done" size={s(15)} color="rgba(255,255,255,0.6)" />
+                          </View>
+                        )}
+                      </>
+                    )}
                   </View>
                 </View>
               );
@@ -763,18 +1000,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2563EB',
     overflow: 'hidden',
-    marginBottom: s(8),
+    position: 'relative',
+    width: '100%',
+    height: s(192),
   },
   userImage: {
     width: '100%',
-    height: s(180),
+    height: '100%',
     resizeMode: 'cover',
   },
   imageMetaRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: s(36),
     flexDirection: 'row',
     alignItems: 'center',
-    padding: s(8),
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: s(12),
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
     gap: s(6),
   },
   imageMetaSize: {
@@ -783,7 +1029,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   imageMetaName: {
-    fontSize: s(11),
+    fontSize: s(12),
     fontWeight: '700',
     color: '#1E293B',
     flex: 1,
